@@ -14,6 +14,10 @@
 #include <string.h>
 #include "lexerDef.h"
 
+// {
+// 	char index[][] = ["eof","ASSIGNOP","COMMENT","FUNID","ID","NUM","RNUM","STR","END","INT","REAL","STRING","MATRIX","MAIN","SQO","SQC","OP","CL","SEMICOLON","COMMA","IF","ELSE","ENDIF",
+// "READ","PRINT","FUNCTION","PLUS","MINUS","MUL","DIV","SIZE","AND","OR","NOT","LT","LE","EQ","GT","GE","NE"]
+// }
 char **createBuffers(int num, int size)
 {
 	char **buffers = (char **)malloc(num*sizeof(char*));
@@ -32,6 +36,11 @@ FILE *getStream(FILE *fp, char *buffer, int buffersize)
 	if (!feof(fp))
 		count = fread(buffer, 1, buffersize-1,fp);
 	// printf("%d\n", count);
+	// printf("BUFFER:%sEND\n",buffer);
+	if(feof(fp)){
+		// printf("\n\nENDOFFILE!\t%d\n\n",count);
+		buffer[count] = EOF;
+	}
 	return fp;
 }
 
@@ -86,24 +95,28 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 	while(1)	// !flag
 	{
 		ch = buffers[peek.buf][peek.index];
-		printf("char read: %c\n",ch);
+		// printf("char read: %c\n",ch);
+		if(ch==EOF)
+		{
+			if(peek.index==(buffersize-1))		// sentinel character
+				{
+					peek.buf = (peek.buf + 1) % buffernum;
+					fp = getStream(fp,buffers[peek.buf],buffersize);
+					peek.index=0;
+					continue;
+				}
+			else	// eof within buffer marks end of input
+				{
+					//flag = 1;	// NOTE: alt send some token to mark end of input.
+					// printf("END OF FILE\n");
+					return setToken(eof,"$",linenum);
+				}	
+		}
+				
 		switch(state)
 		{
 			case 1:	switch(buffers[peek.buf][peek.index])		//DO: change to ch
 					{
-						case EOF:	if(peek.index==(buffersize-1))		// sentinel character
-									{
-										peek.buf = (peek.buf + 1) % buffernum;
-										fp = getStream(fp,buffers[peek.buf],buffersize);
-										peek.index=0;
-									}
-									else	// eof within buffer marks end of input
-									{
-										//flag = 1;	// NOTE: alt send some token to mark end of input.
-										return setToken(eof,"$",linenum);
-									}	
-									break;
-
 						case '\n':	linenum++;	// fall through
 									//printf("newline %d\n",linenum);
 						case ' ':	//printf("space %d\n",linenum);
@@ -237,8 +250,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 									peek.index++;
 									break;
 						default:	// ERROR handling
-									printf("Error: character not recognised\n");
-									exit(1);	//check
+									// printf("Error: character not recognised\n");
+									return setToken(ERROR,"Error: character not recognised\n",linenum);
 					}
 					break;
 			case 13:
@@ -251,11 +264,11 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else	
 					{
 						//ERROR handling
-						printf("Error\n");
+						return setToken(ERROR,"Error: \n",linenum);
 					}
 					break;
 			case 14:
-					while((65<=ch && ch>=90) || (97<=ch && ch>=122) || (48<=ch && ch>=57))
+					while((ch>=65 && ch<=90) || (ch>=97 && ch<=122) || (ch>=48 && ch<=57))
 					{
 						lexeme[i++] = ch;
 						peek.index++;
@@ -266,16 +279,19 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 							peek.index=0;
 						}
 						ch = buffers[peek.buf][peek.index];
+						// printf("char read: %c\n",ch);
+
 					}
 					//check if function is _main
 					if(!strcmp(lexeme,"_main"))
 						return setToken(MAIN,lexeme,linenum);
 					// printf("%s\n",lexeme);
 					// else
+					// printf("%s\n", lexeme);
 					return setToken(FUNID,lexeme,linenum);
 					break;
 			case 15:
-					while((65<=ch && ch>=90) || (97<=ch && ch>=122))
+					while((ch>=65 && ch<=90) || (ch>=97 && ch<=122))
 					{
 						lexeme[i++] = ch;
 						peek.index++;
@@ -286,6 +302,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 							peek.index=0;
 						}
 						ch = buffers[peek.buf][peek.index];
+						// printf("char read: %c\n",ch);
+
 					}
 					if(48<=ch && ch>=57)
 					{
@@ -305,7 +323,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					}
 					break;
 			case 17:
-					while(48<=ch && ch>=57)
+					while(ch>=48 && ch<=57)
 					{
 						lexeme[i++] = ch;
 						peek.index++;
@@ -316,6 +334,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 							peek.index=0;
 						}
 						ch = buffers[peek.buf][peek.index];
+						// printf("char read: %c\n",ch);		
 					}
 					if(ch=='.')
 					{
@@ -326,7 +345,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					// DOUBTS: How to tokenize 23a? '23' and 'a' or error?
 					else
 					{
-						// ERROR (probably)
+						return setToken(NUM,lexeme,linenum);
 					}
 					break;
 			case 18:
@@ -339,7 +358,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// DO: ERROR
-						printf("Error: Real Number formatting not followed\n");
+						return setToken(ERROR,"Error: Real Number formatting not followed\n",linenum);
+
 					}
 					break;
 			case 19:
@@ -353,7 +373,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// DO: ERROR
-						printf("Error: Real Number formatting not followed\n");
+						// printf("Error: Real Number formatting not followed\n");
+						return setToken(ERROR,"Error: Real Number formatting not followed\n",linenum);
 					}
 					break;
 			case 21:
@@ -366,11 +387,11 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// DO: ERROR
-						printf("Error: String formatting not followed\n");
+						return setToken(ERROR,"Error:  String formatting not followed\n",linenum);
 					}
 					break;
 			case 22:
-					while(97<=ch && ch>=122)
+					while(ch>=97 && ch<=122)
 					{
 						lexeme[i++] = ch;
 						peek.index++;
@@ -381,6 +402,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 							peek.index=0;
 						}
 						ch = buffers[peek.buf][peek.index];
+						// printf("char read: %c\n",ch);
+
 					}
 					if(ch=='"')
 					{
@@ -392,7 +415,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// DO: ERROR
-						printf("Error: String formatting not followed\n");
+						// printf("Error: String formatting not followed\n");
+						return setToken(ERROR,"Error: String formatting not followed\n",linenum);
 					}
 					break;
 			case 24:
@@ -404,7 +428,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 									peek.index++;
 									break;
 						default:	// ERROR
-									printf("Error: Unexpected character received\n");
+									// printf("Error: Unexpected character received\n");
+									return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 									break;
 					}
 					break;
@@ -417,7 +442,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Unexpected character received\n");
+						// printf("Error: Unexpected character received\n");
+						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 26:
@@ -429,7 +455,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Unexpected character received\n");
+						// printf("Error: Unexpected character received\n");
+						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 27:
@@ -442,7 +469,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Unexpected character received\n");
+						// printf("Error: Unexpected character received\n");
+						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 29:
@@ -454,7 +482,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Unexpected character received\n");
+						// printf("Error: Unexpected character received\n");
+						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 30:
@@ -467,7 +496,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Unexpected character received %d\n",state);
+						// printf("Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 32:
@@ -479,7 +509,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Unexpected character received %d\n",state);
+						// printf("Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 33:
@@ -491,7 +522,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Unexpected character received %d\n",state);
+						// printf("Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 34:
@@ -504,7 +536,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Unexpected character received %d\n",state);
+						// printf("Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 36:
@@ -558,7 +591,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Unexpected character received %d\n",state);
+						// printf("Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 44:	// DOUBTS: Necessary that the comment have atleast one character?
@@ -571,7 +605,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						printf("Error: Blank Comment\n");
+						// printf("Error: Blank Comment\n");
+						return setToken(ERROR,"Error: Blank Comment\n",linenum);
 					}
 					break;
 			case 45:
@@ -586,6 +621,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 							peek.index=0;
 						}
 						ch = buffers[peek.buf][peek.index];
+						// printf("char read: %c\n",ch);
 					}
 					// ch=='\n'
 					state = 46;
@@ -593,7 +629,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					break;
 			default:
 					//ERROR
-					printf("Error: Invalid state exception\n");
+					// printf("Error: Invalid state exception\n");
+					return setToken(ERROR,"Error: Invalid state exception\n",linenum);
 					break;
 		}
 	}
@@ -622,9 +659,7 @@ int main()
 	{
 		token = getNextToken(fp,2,buffersize);
 		printf("%d %s %d\n",token.id,token.lexeme,token.line); 
-	} while (token.id!=eof); 
-	
-	
+	} while (token.id!=eof); 	
 	
 	return 0;
 }

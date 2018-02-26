@@ -305,7 +305,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 						// printf("char read: %c\n",ch);
 
 					}
-					if(48<=ch && ch>=57)
+					if(ch>=48 && ch<=57)
 					{
 						state = 16;
 						lexeme[i++] = ch;
@@ -334,7 +334,6 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 							peek.index=0;
 						}
 						ch = buffers[peek.buf][peek.index];
-						// printf("char read: %c\n",ch);		
 					}
 					if(ch=='.')
 					{
@@ -349,11 +348,12 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					}
 					break;
 			case 18:
-					if(48<=ch && ch>=57)
+					if(ch>=48 && ch<=57)
 					{
 						state = 19;
 						lexeme[i++] = ch;
 						peek.index++;
+						
 					}
 					else
 					{
@@ -363,7 +363,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					}
 					break;
 			case 19:
-					if(48<=ch && ch>=57)
+					if(ch>=48 && ch<=57)
 					{
 						state = 20;
 						lexeme[i++] = ch;
@@ -374,7 +374,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					{
 						// DO: ERROR
 						// printf("Error: Real Number formatting not followed\n");
-						return setToken(ERROR,"Error: Real Number formatting not followed\n",linenum);
+						return setToken(ERROR,"Error: Real Number formatting not followed1\n",linenum);
 					}
 					break;
 			case 21:
@@ -637,8 +637,9 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 
 }
 
-int main()
+/*int main()
 {
+	// printf("%d\n", ERROR);
 	int buffersize = 10;
 	buffers =  createBuffers(2,buffersize);
 	FILE *fp = fopen("hello.txt","r");
@@ -646,14 +647,14 @@ int main()
 	peek.index = 0;
 	linenum = 1;
 	fp = getStream(fp,buffers[0],buffersize);
-	/*// Print buffers
-	for(int i=0;i<1;i++)
-	{
-		//printf("%d\n",i+1);
-		for(int j=0;j<buffersize;j++)
-			printf("%c ",buffers[i][j]);
-		printf("\n");
-	}*/
+	// // Print buffers
+	// for(int i=0;i<1;i++)
+	// {
+	// 	//printf("%d\n",i+1);
+	// 	for(int j=0;j<buffersize;j++)
+	// 		printf("%c ",buffers[i][j]);
+	// 	printf("\n");
+	// }
 	tokenInfo token;
 	do
 	{
@@ -662,4 +663,4 @@ int main()
 	} while (token.id!=eof); 	
 	
 	return 0;
-}
+}*/

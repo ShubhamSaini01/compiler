@@ -4,6 +4,6 @@
 #include "lexerDef.h"
 char** createBuffers(int,int);
 FILE *getStream(FILE *, char *, int);
-tokenInfo setToken(int, char *, int);
+tokenInfo *setToken(int, char *, int);
 int checkReserveWord(char *);
-tokenInfo getNextToken(FILE *, int, int);
+tokenInfo *getNextToken(FILE *, int, int);

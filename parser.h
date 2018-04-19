@@ -1,0 +1,23 @@
+#include "stack.h"
+PTNode *create_PTNode(tokenInfo *, bool, int, int, int);
+PTNode *addSibling(PTNode *, PTNode *);
+PTNode *addChild(PTNode *,tokenInfo *, bool , int , int, int);
+PTNode *nextInsert(PTNode *);
+int is_nonterm(char *str);
+int is_term(char *str);
+int term_nonterm(char *str);
+rhsnode *create_rhsnode(int tnt, int sym);
+int insertnodes(ffnode **dest, ffnode *src);
+int insert_eps(ffnode **dest, ffnode *src);
+void loadGrammar(char *filename);
+void getFirst(int nt, int **nt_first_done);
+void compute_FirstSets();
+int check_eps_first(int sym);
+int check_term_list(int term, ffnode *list);
+int check_sym_rule(int nt,rhsnode *rule);
+void compute_FollowSets();
+void createParseTable();
+PTNode *parseInputSourceCode(char *testcaseFile);
+FILE *loadfile(char *filename);
+void printParseTree(PTNode *);
+void writeParseTree(PTNode *, FILE *);

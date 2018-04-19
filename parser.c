@@ -1,53 +1,128 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#ifndef
-#include "lexer.h"
-#include "lexerDef.h"
+// #include "parserDef.h"
+// #ifndef mac
+// #include "lexerDef.h"
+// #include "lexer.h"
+#include "parser.h"
 
-#define SYM_SIZE 30
-#define NUM_RULES 86
-#define TOTAL_NT 44
-#define TOTAL_T 39
-
-int ntcount = 0;	// #nonterminals
-int tcount = 0;		// #terminals
-
-char nonterms[TOTAL_NT][SYM_SIZE];
-char terms[TOTAL_T][SYM_SIZE];
-
-typedef struct rhsnode
+PTNode *create_PTNode(tokenInfo *token, bool isLeaf, int isT, int symbol, int rule)
 {
-	int isT;	// whether symbol is a terminal (1)/ nonterminal (0)/ null (-1)
-	int symbol;
-	struct rhsnode* next;
-}rhsnode;
-// typedef struct rhsnode rhsnode;
-
-typedef struct lhsnode
+	PTNode *node = (PTNode *)malloc(sizeof(PTNode));
+	node->token = token;
+	node->isLeaf = isLeaf;
+	node->isT = isT;
+	node->symbol = symbol; 
+	node->rule = rule;
+	node->parent = NULL;
+	node->children = NULL;
+	node->siblings = NULL;
+	return node;
+}
+PTNode *addSibling(PTNode *base, PTNode *node)
 {
-	// int ruleno;
-	int nonterm;
-	rhsnode *rhs;
-}lhsnode;
+	if(base==NULL)
+		return NULL;
+	// PTNode *node = create_PTNode(token,isLeaf,isT,symbol);
+	PTNode *itr = base;
+	while(itr->siblings!=NULL)
+		itr = itr->siblings;
+	itr->siblings = node;
+	node->parent = base->parent;
+	return node;
+}
 
-typedef struct ffnode
+PTNode *addChild(PTNode *parent,tokenInfo *token, bool isLeaf, int isT, int symbol, int rule)
 {
-	int terminal;	// -1 for eps
-	struct ffnode* next;
-}ffnode;
-typedef struct ffheader
+	if(parent==NULL)
+		return NULL;
+	PTNode *node = create_PTNode(token,isLeaf,isT,symbol,rule);
+	if(parent->children==NULL)
+	{
+		parent->children = node;
+		node->parent = parent;
+	}
+	else
+	{
+		addSibling(parent->children,node);
+	}
+	return parent;
+}
+
+PTNode *nextInsert(PTNode *node)
 {
-	int symbol;
-	ffnode *list;
-}ffheader;
+	if(node == NULL)
+		return NULL;
+	if(node->siblings!= NULL)
+		return node->siblings;
 
-lhsnode grammar[NUM_RULES];
-ffheader *firstsets;
-ffheader *followsets;
+	return nextInsert(node->parent);
+}
 
-int **parsetable;
+void printParseTree(PTNode *root)
+{
+	if(root->children!=NULL){
+		printf("down\n");
+		printParseTree(root->children);
+		printf("up\n");
+	}
+	if(root->isT!=0)
+	{
+		printf("%d %d %s\n",root->isT,root->rule,terms[root->symbol]);
+	}
+	else
+	{
+		printf("%d %d %s\n",root->isT,root->rule,nonterms[root->symbol]);
+	}
+	root = root->children;
+	printf("down\n");
+	while(root!=NULL && root->siblings!=NULL)
+	{
+		printf("->\n");
+		printParseTree(root->siblings);
+		root = root->siblings;
+	}
+	printf("up\n");
+	return;
+}
+// terminaltoken linenum termname ifnumthennum parent leafyes/no nontermname
+void writeParseTree(PTNode *root, FILE *fp)
+{
+	if(root->children!=NULL)
+		writeParseTree(root->children,fp);
+	if(root->isT==1)	
+	{
+		if(root->token!=NULL)
+		{
+		// fprintf("%d %s\n",root->isT,terms[root->symbol]);
+		if(root->symbol==NUM || root->symbol==RNUM)
+			fprintf(fp,"%s\t\t%d\t\t%s\t\t%s\t\t%s\t\tYES\t\t----------\n",root->token->lexeme,root->token->line,terms[root->symbol],root->token->lexeme,nonterms[root->parent->symbol]);
+		else
+			fprintf(fp,"%s\t\t%d\t\t%s\t\t----------\t\t%s\t\tYES\t\t----------\n",root->token->lexeme,root->token->line,terms[root->symbol],nonterms[root->parent->symbol]);
+		}
+	}
+	else if(root->isT==0)
+	{
+		// fprintf("%d %s\n",root->isT,nonterms[root->symbol]);
+		if(root->parent==NULL)
+			fprintf(fp,"----------\t\t----------\t\t----------\t\t----------\t\tROOT\t\tNO\t\t%s\n",nonterms[root->symbol]);
+		else
+			fprintf(fp,"----------\t\t----------\t\t----------\t\t----------\t\t%s\t\tNO\t\t%s\n",nonterms[root->parent->symbol],nonterms[root->symbol]);
+	}
+	else
+	{
+		fprintf(fp,"----------\t\t----------\t\t EPSILON \t\t----------\t\t%s\t\tNO\t\t----------\n",nonterms[root->parent->symbol]);
 
+	}
+	root = root->children;
+	while(root!=NULL && root->siblings!=NULL)
+	{
+		writeParseTree(root->siblings,fp);
+		root = root->siblings;
+	}
+	return;
+}
 int is_nonterm(char *str)
 {
 	// returns index in nonterminal table if nonterminal presemt, otherwise -1
@@ -195,8 +270,8 @@ int insert_eps(ffnode **dest, ffnode *src)
 		}
 		insert = insert->next;
 	}
-	printf("eps1: %d\n",eps_flag);
-	printf("other\n");
+	// printf("eps1: %d\n",eps_flag);
+	// printf("other\n");
 	return eps_flag;
 }
 
@@ -221,13 +296,15 @@ void loadGrammar(char *filename)
 	}
 	while((read = fscanf(fp,"%s ===> %[^\r\n\t]",left,right))>0)
 	{
-		printf("%s -> %s\n", left, right);
+		// printf("%s -> %s\n", left, right);
 		//  if NT not already encountered, add it to list of NTs
 		i_lhs = is_nonterm(left);
 		if(i_lhs<0)
 		{
 			strcpy(nonterms[ntcount],left);
 			i_lhs = ntcount;
+			if(i_lhs==46)
+				printf("> : %d\n", i_gmr + 1);
 			ntcount++;
 		}
 		grammar[i_gmr].nonterm = i_lhs;
@@ -243,7 +320,7 @@ void loadGrammar(char *filename)
 			// 	i_tok = 0;
 			// }
 			tnt = term_nonterm(token);
-			printf("%s %d\t",token,tnt);
+			// printf("%s %d\t",token,tnt);
 			if(tnt!=0)	// is a terminal or eps
 			{
 				i_tok = is_term(token);
@@ -261,6 +338,8 @@ void loadGrammar(char *filename)
 				{
 					strcpy(nonterms[ntcount],token);
 					i_tok = ntcount;
+					if(i_tok==46)
+						printf("> : %d\n", i_gmr + 1);
 					ntcount++;
 				}
 			}
@@ -273,7 +352,7 @@ void loadGrammar(char *filename)
 		grammar[i_gmr].rhs = head->next;
 		free(head);
 		i_gmr++;
-		printf("\n");
+		// printf("\n");
 	}
 }
 
@@ -737,110 +816,162 @@ void createParseTable()
 		}
 	}
 }
-void parseInputSourceCode(char *testcaseFile)
+// FILE *loadfile(char *filename)
+// {
+// 	buffers = createBuffers(2,BUF_SIZE);
+// 	FILE *fp = fopen(filename,"r");
+// 	peek.buf = 0;
+// 	peek.index = 0;
+// 	linenum = 1;
+// 	fp = getStream(fp,buffers[0],BUF_SIZE);
+// 	return fp;
+// }
+PTNode *parseInputSourceCode(char *testcaseFile)
 {
+	// FILE *fp = loadfile(testcaseFile);
 	buffers = createBuffers(2,BUF_SIZE);
 	FILE *fp = fopen(testcaseFile,"r");
 	peek.buf = 0;
 	peek.index = 0;
 	linenum = 1;
 	fp = getStream(fp,buffers[0],BUF_SIZE);
-	tokenInfo token;
+	
+	Stack *stack = create_stack(20);
+	Stack *rev_stack = create_stack(20);
+
+
+	PTNode *mainNT = create_PTNode(NULL,false,0,0,-1);
+	PTNode *root = mainNT;
+	push(root,&stack);
+
+	PTNode *insert = root;
+	PTNode *top = NULL;
+	PTNode *temp = NULL;
+	tokenInfo *token;
+	rhsnode *itr;
+	int rulenum;
 	do
 	{
 		token = getNextToken(fp,2,BUF_SIZE);
-		printf("%d %s %d\n",token.id,token.lexeme,token.line); 
-	}while(token.id!=eof);
-}
-int main()
-{
-	char filename[] = "grammar.txt";
-	loadGrammar(filename);
-	for(int i = 0; i < ntcount;i++)
-		printf("%s\t",nonterms[i]);
-	printf("%d\n",ntcount);
-	printf("NONTERMINALS\n");
-	for(int i=0;i<ntcount;i++)
-		printf("%d\t%s\n",i,nonterms[i]);
-	printf("TERMINALS\n");
-	for(int i=0;i<tcount;i++)
-		printf("%d\t%s\n",i,terms[i]);
-	for(int i=0;i<NUM_RULES;i++)
-	{
-		printf("RULE %d:\t%d\n", i+1, grammar[i].nonterm);
-		rhsnode *itr = grammar[i].rhs;
-		while(itr!=NULL)
-		{
-			printf("Node:\t%d\t%d\n",itr->isT,itr->symbol);
-			itr = itr->next;
+		// printf("Token: %s %s %d\n",terms[token->id],token->lexeme,token->line); 
+		if(token->id==COMMENT) {
+			free(token);
+			continue;
 		}
-		printf("\n");
-	}
-	// ffnode *ptr = (ffnode *)malloc(sizeof(ffnode));
-	// ptr->terminal = 1;
-	// ptr->next = (ffnode *)malloc(sizeof(ffnode));
-	// ptr->next->terminal = 2;
-	// ptr->next->next = (ffnode *)malloc(sizeof(ffnode));
-	// ptr->next->next->terminal = 3;
-	// ptr->next->next->next = NULL;
-	// // ffnode *ptr;
-	// ffnode *ptr1 = (ffnode *)malloc(sizeof(ffnode));
-	// ptr1->terminal = 4;
-	// ptr1->next = (ffnode *)malloc(sizeof(ffnode));
-	// ptr1->next->terminal = 0;
-	// ptr1->next->next = (ffnode *)malloc(sizeof(ffnode));
-	// ptr1->next->next->terminal = 6;
-	// ptr1->next->next->next = NULL;
-	// insertnodes(&ptr,ptr1);
-	// ffnode *temp = ptr;
-	// printf("HELLO!\n");
-	// while(temp!=NULL)
-	// {
-	// 	printf("%d\t", temp->terminal);
-	// 	temp = temp->next;
-	// }
-	// printf("\n");
+		else if(token->id==ERROR) {
+			printf("Line: %d\t\t%s\n",token->line,token->lexeme);
+			free(token);
+			continue;
+		}
+		else if(token->id==eof)	{
+			free(token);
+			return root;
+		}
+		// printf("STACK TOP: %d %d %d\n",top->isLeaf,top->isT,top->symbol);
+		while(!isEmpty(stack))
+		{
+			top = getTop(stack);
+			// REMOVE
+			if(top==NULL)
+			{
+				printf("Top is null\n");
+				break;
+			}
+			else
+			{
+				if(top->isT==1)	// stack top is terminal
+				{
+					// printf("STACK TOP: %d %d %s\n",top->isLeaf,top->isT,terms[top->symbol]);
+					if(top->symbol==token->id)
+					{
+						temp = pop(stack);
+						// add token information to temp and insert into tree
+						//insert->symbol = token->id;
+						insert->token = token;
+						insert->isLeaf = true;
+						/*if(strcmp(terms[token->id],"SEMICOLON")==0) {
+							printf("Set semicolon insertion, value: %s\n",terms[insert->token->id]);
+							if(insert->children!=NULL)
+								printf("Semicolon child: %d\n",insert->children->token->id);
+							else
+								printf("NULL\n");
+						}*/
+						insert = nextInsert(insert);
+						/*if(strcmp(terms[token->id],"SEMICOLON")==0) {
+						// 	if (insert->isLeaf==true)
+						// 		printf("After semicolon insertion, pointer: %s\n",terms[insert->symbol]);
+						// 	else
+						// 		printf("After semicolon insertion, pointer: %s\n",nonterms[insert->symbol]);
+							printf("After semicolon insertion, parent: %s\n",nonterms[insert->parent->symbol]);
+						}*/
+						break;
+					}
+					else
+					{
+						// ERROR
+						printf("ERROR1!\n");
+						break;
+					}
+				}
+				else if(top->isT==0)
+				{
+					// printf("STACK TOP: %d %d %s\n",top->isLeaf,top->isT, nonterms[top->symbol]);
+					rulenum = parsetable[top->symbol][token->id];
+					// printf("RULENUM: %d\n", rulenum+1);
+					if(rulenum==-1)
+					{
+						// ERROR
+						printf("ERROR2!\n");
+						break;
+					}
+					else
+					{
+						temp = pop(stack);
+						// printf("SIZE: %d\n", stack->size);
+						itr = grammar[rulenum].rhs;
+						while(itr!=NULL)
+						{
+							if(itr->isT!=0)
+								addChild(insert,token,true,itr->isT,itr->symbol,rulenum);
+							else
+								addChild(insert,NULL,false,itr->isT,itr->symbol,rulenum);
+							// if(itr->isT!=-1)
+							// {
+								PTNode *pushnode = create_PTNode(NULL,false,itr->isT,itr->symbol,rulenum);
+								push(pushnode,&rev_stack);
+							// }
+							itr = itr->next;
+						}
+						insert = insert->children;
+						while(rev_stack->size>0)
+						{
+							// push(pop(&rev_stack),&stack);
+							PTNode * a = pop(rev_stack);
 
-	compute_FirstSets();
-	printf("FIRST SETS\n");
-	for(int i=0;i<tcount+ntcount;i++)
-	{
-		printf("%d\t%d\t:\t",i,firstsets[i].symbol);
-		ffnode *itr = firstsets[i].list;
-		while(itr!=NULL)
-		{
-			printf("%d\t",itr->terminal);
-			itr = itr->next;
+								// if(a->isT==1)
+							// 	printf("revCap: %d Node: %d %d %s\n",rev_stack->size,a->isLeaf,a->isT,terms[a->symbol]);
+							// else
+							// 	printf("revcap: %d Node: %d %d %s\n",rev_stack->size,a->isLeaf,a->isT,nonterms[a->symbol]);
+							if(a!=NULL)
+								push(a,&stack);
+						}
+					}
+				}
+				else	// top->isT == -1 EPSILON
+				{
+					// printf("I DONT KNOW!\n");
+					// printf("STACK TOP: %d %d %s\n",top->isLeaf,top->isT,terms[top->symbol]);
+					temp = pop(stack);
+					insert->isLeaf=true;
+					insert = nextInsert(insert);
+				}
+			}
+		// printf("\n\nSTACK:\n");
+		// printStack(stack);
 		}
-		printf("\n");
-	}
-	// printf("%d %d",tcount,ntcount);
-	compute_FollowSets();
-	printf("FOLLOW SETS\n");
-	for(int i=0;i<ntcount;i++)
-	{
-		printf("%d:\t",followsets[i].symbol);
-		ffnode *itr = followsets[i].list;
-		while(itr!=NULL)
-		{
-			printf("%d\t",itr->terminal);
-			itr = itr->next;
-		}
-		printf("\n");
-	}
-	createParseTable();
-	printf("SYMBOL TABLE\n");
-	for(int i=0;i<ntcount;i++)
-	{
-		printf("%d\n", i);
-		for(int j=0;j<tcount+1;j++)
-			printf("%d\t", parsetable[i][j]);
-		printf("\n\n\n");
-	}
-	char file[] = "hello.txt";
-	parseInputSourceCode(file);
-
-	// printf("check term list: %d\n", check_term_list(1,followsets[1].list));
-	return 0;
+	}while(token->id!=eof);
+	fclose(fp);
+	return root;
 }
-#endif
+
+// #endif

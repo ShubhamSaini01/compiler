@@ -44,46 +44,46 @@ FILE *getStream(FILE *fp, char *buffer, int buffersize)
 	return fp;
 }
 
-tokenInfo setToken(int id, char *lexeme, int line)
+tokenInfo *setToken(int id, char *lexeme, int line)
 {
-	tokenInfo token;
-	token.lexeme = (char *)malloc(BUF_SIZE*sizeof(char));		// max length = 20 (most probably). BUF_SIZE just to be on safer side.
-	token.id = id;
-	strcpy(token.lexeme, lexeme);
-	token.line = line;
+	tokenInfo *token = (tokenInfo *)malloc(sizeof(tokenInfo));
+	token->lexeme = (char *)malloc(BUF_SIZE*sizeof(char));		// max length = 20 (most probably). BUF_SIZE just to be on safer side.
+	token->id = id;
+	strcpy(token->lexeme, lexeme);
+	token->line = line;
 	//token.value = value;
 	return token;
 }
 
 int checkReserveWord(char *lexeme)
 {
-	if(!strcmp(lexeme,"end"))
+	if(strcmp(lexeme,"end")==0)
 		return END;
-	else if(!strcmp(lexeme,"int"))
+	else if(strcmp(lexeme,"int")==0)
 		return INT;
-	else if(!strcmp(lexeme,"real"))
+	else if(strcmp(lexeme,"real")==0)
 		return REAL;
-	else if(!strcmp(lexeme,"string"))
+	else if(strcmp(lexeme,"string")==0)
 		return STRING;
-	else if(!strcmp(lexeme,"matrix"))
+	else if(strcmp(lexeme,"matrix")==0)
 		return MATRIX;
-	else if(!strcmp(lexeme,"if"))
+	else if(strcmp(lexeme,"if")==0)
 		return IF;
-	else if(!strcmp(lexeme,"else"))
+	else if(strcmp(lexeme,"else")==0)
 		return ELSE;
-	else if(!strcmp(lexeme,"endif"))
+	else if(strcmp(lexeme,"endif")==0)
 		return ENDIF;
-	else if(!strcmp(lexeme,"read"))
+	else if(strcmp(lexeme,"read")==0)
 		return READ;
-	else if(!strcmp(lexeme,"print"))
+	else if(strcmp(lexeme,"print")==0)
 		return PRINT;
-	else if(!strcmp(lexeme,"function"))
+	else if(strcmp(lexeme,"function")==0)
 		return FUNCTION;
 	else
 		return -1;
 }
 
-tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
+tokenInfo *getNextToken(FILE *fp,int buffernum, int buffersize)
 {
 	state = 1;
 	int flag = 0;
@@ -250,12 +250,12 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 									peek.index++;
 									break;
 						default:	// ERROR handling
-									// printf("Error: character not recognised\n");
-									return setToken(ERROR,"Error: character not recognised\n",linenum);
+									// printf("Lexical Error: character not recognised\n");
+									return setToken(ERROR,"Lexical Error: character not recognised\n",linenum);
 					}
 					break;
 			case 13:
-					if((65<=ch && ch>=90) || (97<=ch && ch>=122))
+					if((ch>=65 && ch<=90) || (ch>=97 && ch<=122))
 					{
 						state = 14;
 						lexeme[i++] = ch;
@@ -264,7 +264,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else	
 					{
 						//ERROR handling
-						return setToken(ERROR,"Error: \n",linenum);
+						return setToken(ERROR,"Lexical Error: \n",linenum);
 					}
 					break;
 			case 14:
@@ -283,11 +283,13 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 
 					}
 					//check if function is _main
-					if(!strcmp(lexeme,"_main"))
+					if(strcmp(lexeme,"_main")==0)
 						return setToken(MAIN,lexeme,linenum);
 					// printf("%s\n",lexeme);
 					// else
 					// printf("%s\n", lexeme);
+					if(strlen(lexeme)>20)
+						return setToken(ERROR,"Lexical Error: FUNID Identifier exceeds length limit\n",linenum);
 					return setToken(FUNID,lexeme,linenum);
 					break;
 			case 15:
@@ -310,6 +312,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 						state = 16;
 						lexeme[i++] = ch;
 						peek.index++;
+						if(strlen(lexeme)>20)
+							return setToken(ERROR,"Lexical Error: ID Identifier exceeds length limit\n",linenum);
 						return setToken(ID,lexeme,linenum);
 					}
 					else
@@ -319,7 +323,11 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 						if(reserve!=-1)
 							return setToken(reserve,lexeme,linenum);
 						else
+						{
+							if(strlen(lexeme)>20)
+								return setToken(ERROR,"Lexical Error: ID Identifier exceeds length limit\n",linenum);
 							return setToken(ID,lexeme,linenum);
+						}
 					}
 					break;
 			case 17:
@@ -358,7 +366,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// DO: ERROR
-						return setToken(ERROR,"Error: Real Number formatting not followed\n",linenum);
+						return setToken(ERROR,"Lexical Error: Real Number formatting not followed\n",linenum);
 
 					}
 					break;
@@ -373,12 +381,12 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// DO: ERROR
-						// printf("Error: Real Number formatting not followed\n");
-						return setToken(ERROR,"Error: Real Number formatting not followed1\n",linenum);
+						// printf("Lexical Error: Real Number formatting not followed\n");
+						return setToken(ERROR,"Lexical Error: Real Number formatting not followed1\n",linenum);
 					}
 					break;
 			case 21:
-					if(97<=ch && ch>=122)
+					if((ch>=97 && ch<=122) || (ch==' '))
 					{
 						state = 22;
 						lexeme[i++] = ch;
@@ -387,11 +395,11 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// DO: ERROR
-						return setToken(ERROR,"Error:  String formatting not followed\n",linenum);
+						return setToken(ERROR,"Lexical Error:  String formatting not followed (1)\n",linenum);
 					}
 					break;
 			case 22:
-					while(ch>=97 && ch<=122)
+					while((ch>=97 && ch<=122) || (ch==' '))
 					{
 						lexeme[i++] = ch;
 						peek.index++;
@@ -410,13 +418,15 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 						state = 23;
 						lexeme[i++] = ch;
 						peek.index++;
-						return setToken(STRING,lexeme,linenum);		// DOUBTS: do we need to include '"' and '"' in the lexeme?
+						if(strlen(lexeme)>20)
+							return setToken(ERROR,"Lexical Error: String (STR) exceeds length limit\n",linenum);
+						return setToken(STR,lexeme,linenum);		// DOUBTS: do we need to include '"' and '"' in the lexeme?
 					}
 					else
 					{
 						// DO: ERROR
-						// printf("Error: String formatting not followed\n");
-						return setToken(ERROR,"Error: String formatting not followed\n",linenum);
+						// printf("Lexical Error: String formatting not followed\n");
+						return setToken(ERROR,"Lexical Error: String formatting not followed (2)\n",linenum);
 					}
 					break;
 			case 24:
@@ -428,8 +438,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 									peek.index++;
 									break;
 						default:	// ERROR
-									// printf("Error: Unexpected character received\n");
-									return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+									// printf("Lexical Error: Unexpected character received\n");
+									return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 									break;
 					}
 					break;
@@ -442,8 +452,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Unexpected character received\n");
-						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+						// printf("Lexical Error: Unexpected character received\n");
+						return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 26:
@@ -455,8 +465,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Unexpected character received\n");
-						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+						// printf("Lexical Error: Unexpected character received\n");
+						return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 27:
@@ -469,8 +479,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Unexpected character received\n");
-						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+						// printf("Lexical Error: Unexpected character received\n");
+						return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 29:
@@ -482,8 +492,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Unexpected character received\n");
-						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+						// printf("Lexical Error: Unexpected character received\n");
+						return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 30:
@@ -496,8 +506,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Unexpected character received %d\n",state);
-						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+						// printf("Lexical Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 32:
@@ -509,8 +519,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Unexpected character received %d\n",state);
-						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+						// printf("Lexical Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 33:
@@ -522,8 +532,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Unexpected character received %d\n",state);
-						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+						// printf("Lexical Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 34:
@@ -536,8 +546,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Unexpected character received %d\n",state);
-						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+						// printf("Lexical Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 36:
@@ -591,8 +601,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Unexpected character received %d\n",state);
-						return setToken(ERROR,"Error: Unexpected character received\n",linenum);
+						// printf("Lexical Error: Unexpected character received %d\n",state);
+						return setToken(ERROR,"Lexical Error: Unexpected character received\n",linenum);
 					}
 					break;
 			case 44:	// DOUBTS: Necessary that the comment have atleast one character?
@@ -605,8 +615,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					else
 					{
 						// ERROR
-						// printf("Error: Blank Comment\n");
-						return setToken(ERROR,"Error: Blank Comment\n",linenum);
+						// printf("Lexical Error: Blank Comment\n");
+						return setToken(ERROR,"Lexical Error: Blank Comment\n",linenum);
 					}
 					break;
 			case 45:
@@ -629,8 +639,8 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 					break;
 			default:
 					//ERROR
-					// printf("Error: Invalid state exception\n");
-					return setToken(ERROR,"Error: Invalid state exception\n",linenum);
+					// printf("Lexical Error: Invalid state exception\n");
+					return setToken(ERROR,"Lexical Error: Invalid state exception\n",linenum);
 					break;
 		}
 	}
@@ -642,7 +652,7 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 	// printf("%d\n", ERROR);
 	int buffersize = 10;
 	buffers =  createBuffers(2,buffersize);
-	FILE *fp = fopen("hello.txt","r");
+	FILE *fp = fopen("testcase1.txt","r");
 	peek.buf = 0;
 	peek.index = 0;
 	linenum = 1;
@@ -655,12 +665,12 @@ tokenInfo getNextToken(FILE *fp,int buffernum, int buffersize)
 	// 		printf("%c ",buffers[i][j]);
 	// 	printf("\n");
 	// }
-	tokenInfo token;
+	tokenInfo *token;
 	do
 	{
 		token = getNextToken(fp,2,buffersize);
-		printf("%d %s %d\n",token.id,token.lexeme,token.line); 
-	} while (token.id!=eof); 	
+		printf("%d %s %d\n",token->id,token->lexeme,token->line); 
+	} while (token->id!=eof); 	
 	
 	return 0;
 }*/

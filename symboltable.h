@@ -10,7 +10,7 @@ SymbolTable *initializeSymbolTable(astNode *,/* astNode *, astNode *,*/ SymbolTa
 SymbolTable *createSymbolTable(astNode *, SymbolTable *);
 STEntry *createSTEntry(astNode *, astNode *);
 void insertSymbolTable(SymbolTable *, astNode *);
-void insertHashTable(STEntry **, astNode *, astNode *);
+STEntry *insertHashTable(STEntry **, astNode *, astNode *);
 void printSymbolTable_Node(SymbolTable *);
 void printHashTable(STEntry **);
 bool search_hashtable(SymbolTable *, unsigned char *);

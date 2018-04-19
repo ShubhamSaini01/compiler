@@ -61,8 +61,8 @@ void search_hashtable_AST(SymbolTable *st, astNode *root)
 		bool exist = search_hashtable(st, root->token->lexeme);
 		if(!exist)	// ERROR
 			printf("Line:%d: ERROR: symbol '%s' undefined.\n",root->token->line, root->token->lexeme);
-		else
-			printf("symbol %s defined in current scope.\n", root->token->lexeme);
+		// else
+			// printf("symbol %s defined in current scope.\n", root->token->lexeme);
 	}
 	root = root->children;
 	// printf("down\n");
@@ -97,8 +97,8 @@ SymbolTable *initializeSymbolTable(astNode *func, /*astNode *inparams, astNode *
 	}
 	else
 	{
-		st->inparams = func->children->children;
-		st->outparams = func->children->siblings->siblings->children;
+		st->outparams = func->children->children;
+		st->inparams = func->children->siblings->siblings->children;
 		strcpy(st->scope,func->children->siblings->token->lexeme);
 	}
 	return st;
@@ -117,10 +117,10 @@ STEntry *createSTEntry(astNode *var, astNode *type)
 	return entry;
 }
 
-void insertHashTable(STEntry **ht, astNode *var, astNode *type)
+STEntry *insertHashTable(STEntry **ht, astNode *var, astNode *type)
 {
 	int key = hash(var->token->lexeme);
-	printf("%s : %d\n", var->token->lexeme, key);
+	// printf("%s : %d\n", var->token->lexeme, key);
 	STEntry *bucket = ht[key];
 	if(ht[key]==NULL)
 		ht[key] = createSTEntry(var, type);
@@ -144,7 +144,7 @@ void insertSymbolTable(SymbolTable *st, astNode *stmt)
 {
 	if(stmt->isT==0 && stmt->symbol==6)	// declarationStmt
 	{
-		printf("declarationStmt\n");
+		// printf("declarationStmt\n");
 		astNode *type = stmt->children;
 		astNode *vars = stmt->children->siblings;
 		while(vars!=NULL)
@@ -157,12 +157,12 @@ void insertSymbolTable(SymbolTable *st, astNode *stmt)
 	}
 	else if(stmt->isT==0 && (stmt->symbol==16 || stmt->symbol==17))	// assignmentStmt
 	{
-		printf("assignmentStmt\n");
+		// printf("assignmentStmt\n");
 		search_hashtable_AST(st, stmt);
 	}
 	else if(stmt->isT==0 && stmt->symbol==8)	//conditionalStmt
 	{
-		printf("conditionalStmt\n");
+		// printf("conditionalStmt\n");
 		search_hashtable_AST(st, stmt->children);	// booleanExpression
 		astNode *itr = stmt->children->siblings;
 		while(itr!=NULL && is_stmt(itr))		// CONFIRM : currently adding all declaration inside if to the parent function.
@@ -184,28 +184,27 @@ void insertSymbolTable(SymbolTable *st, astNode *stmt)
 	}
 	else if(stmt->isT==1 && (stmt->symbol==20 || stmt->symbol==21))	// ioStmt
 	{
-		printf("ioStmt\n");
+		// printf("ioStmt\n");
 		bool exist = search_hashtable(st, stmt->children->token->lexeme);
 		if(!exist)	// ERROR
 			printf("Line:%d: ERROR: symbol '%s' undefined.\n",stmt->children->token->line, stmt->children->token->lexeme);
-		else
-			printf("symbol %s defined in current scope.\n", stmt->children->token->lexeme);
+		// else
+			// printf("symbol %s defined in current scope.\n", stmt->children->token->lexeme);
 	}
 	else if(stmt->isT==0 && stmt->symbol==11)	//funcCallStmt
 	{
-		printf("funcCallStmt\n");
+		// printf("funcCallStmt\n");
 		// Checking for Function Definition
 		bool exist = search_hashtable(st, stmt->children->token->lexeme);
 		if(!exist)	// ERROR
 			printf("Line:%d: ERROR: function '%s' undefined.\n",stmt->children->token->line, stmt->children->token->lexeme);
-		else
-			printf("Function %s defined in current scope.\n", stmt->children->token->lexeme);
+		// else
+			// printf("Function %s defined in current scope.\n", stmt->children->token->lexeme);
 		// Checking Parameters
 		// printf("Checking Parameters...\n");
 		astNode *pitr = stmt->children->siblings;
 		while(pitr!=NULL)
 		{
-
 			search_hashtable_AST(st, pitr);
 			pitr = pitr->siblings;
 		}
@@ -214,7 +213,13 @@ void insertSymbolTable(SymbolTable *st, astNode *stmt)
 	}
 	else if(stmt->isT==0 && stmt->symbol==5)	//funcDef
 	{
-		printf("funcDef\n");
+		// printf("funcDef\n");
+		astNode *functype = (astNode *)malloc(sizeof(astNode));
+		functype->symbol = FUNCTION;
+		STEntry *func = insertHashTable(st->hashtable,stmt->children->siblings,functype);
+		free(functype);
+		func->fndef = createSymbolTable(stmt,st);
+		printSymbolTable_Node(func->fndef);
 	}
 	else
 	{
@@ -226,6 +231,21 @@ void insertSymbolTable(SymbolTable *st, astNode *stmt)
 SymbolTable *createSymbolTable(astNode *func, SymbolTable *parent)
 {
 	SymbolTable *st = initializeSymbolTable(func, parent);
+	// Handle Parameters
+	astNode *params = st->inparams;
+	while(params)
+	{
+// STEntry *insertHashTable(STEntry **ht, astNode *var, astNode *type)
+		insertHashTable(st->hashtable, params->children->siblings, params->children);
+		params = params->siblings;
+	}
+	params = st->outparams;
+	while(params)
+	{
+		insertHashTable(st->hashtable, params->children->siblings, params->children);
+		params = params->siblings;
+	}
+	// Handle Statements
 	astNode *itrstmt;
 	if(func->isT==0 && func->symbol==0)
 		itrstmt = func->children;
